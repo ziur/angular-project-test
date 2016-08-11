@@ -53,11 +53,6 @@ var config = {
 
 var uiModules;
 
-function template(templateString) {
-    var compiled =  lodash_template(templateString, config.paths);
-    return compiled;
-}
-
 function getUiModules() {
     if (!uiModules) {
         uiModules = fs.readdirSync('./')
@@ -65,29 +60,8 @@ function getUiModules() {
                 return fs.statSync(file).isDirectory() && file.match('^angular-multimodule-.*-ui$');
             });
     }
+    console.log("Module:" + uiModules);
     return uiModules;
-}
-
-function multiModuleTask(globs, globOpts, cb) {
-    if (typeof globOpts === 'function') {
-        cb = globOpts;
-        globOpts = null;
-    }
-
-    globOpts = globOpts || {};
-    var cwd = globOpts.cwd;
-
-
-    var tasks = getUiModules().map(function (module) {
-        globOpts.module = module;
-        globOpts.cwd = lodash_template(cwd || '<%= module %>', globOpts);
-        var moduleGlobs = globs.map(function (glob) {
-            return lodash_template(glob, globOpts);
-        });
-        return cb(gulp.src(moduleGlobs, globOpts), module);
-    });
-
-    return es.concat.apply(null, tasks);
 }
 
 var proxy = function (staticDir, next) {
@@ -210,17 +184,53 @@ var bannerPipe = lazypipe()
     .pipe(header, '(function(window, document, undefined) {\n\'use strict\';\n')
     .pipe(footer, '\n})(window, document);\n');
 
+gulp.task('scripts', function() {
+   var folders = getUiModules();
+   console.log("folders:" + folders);
+    var scriptsPath = "/opt/a/things/projects/jala/fundacion/softurem3/angular-multimodule-example"
+   var tasks = folders.map(function(folder) {
+   console.log('path:' + path.join(scriptsPath, folder, '/src/main/**/*.js'));
+      return gulp.src(path.join(scriptsPath, folder, '/src/main/**/*.js'))
+//        .pipe(debug())
+        .pipe(jshint(config.jshint.jshintrc))
+        .pipe(jshint.reporter(config.jshint.reporter))
+        // concat into foldername.js
+        .pipe(concat(folder + '.js'))
+        // minify
+//        .pipe(uglify())
+        // rename to folder.min.js
+//        .pipe(rename(folder + '.min.js'))
+        // write to output again
+        .pipe(gulp.dest("/opt/a/things/projects/jala/fundacion/softurem3/angular-multimodule-example/angular-multimodule-server/src/main/webapp/scripts/modules"));
+   });
+
+//4521111
+   // process all remaining files in scriptsPath root into main.js and main.min.js files
+   /*var root = gulp.src(path.join(scriptsPath, '*//*.js'))
+        .pipe(concat('main.js'))
+        .pipe(gulp.dest(scriptsPath))
+        .pipe(uglify())
+        .pipe(rename('main.min.js'))
+        .pipe(gulp.dest(scriptsPath));*/
+
+   return tasks;//merge(tasks, root);
+});
+
 gulp.task('angular-js', function () {
     return multiModuleTask(['<%= module %>/src/main/**/*.js'], function (src, module) {
+        console.log('***************************');
+        console.log(src);
+        console.log(module);
         var dest = template('<%= app %>/scripts/modules');
+        console.log('DEST:' + dest);
         return src
-            .pipe(debug())
-            .pipe(jshint(config.jshint.jshintrc))
-            .pipe(jshint.reporter(config.jshint.reporter))
-            .pipe(newer(dest + '/' + module + '.js'))
+//            .pipe(debug())
+//            .pipe(jshint(config.jshint.jshintrc))
+//            .pipe(jshint.reporter(config.jshint.reporter))
+//            .pipe(newer(dest + '/' + module + '.js'))
             .pipe(concat(module + '.js'))
-            .pipe(replace('\'use strict\';', ''))
-            .pipe(bannerPipe())
+//            .pipe(replace('\'use strict\';', ''))
+//            .pipe(bannerPipe())
             .pipe(gulp.dest(dest));
     });
 });
@@ -249,4 +259,35 @@ gulp.task('angular-templates', function () {
             .pipe(gulp.dest(template('<%= app %>/scripts/modules')))
             .pipe(gulp.dest(dest));
     });
+});
+
+
+gulp.task('templates', function() {
+   var folders = getUiModules();
+   console.log("folders:" + folders);
+    var scriptsPath = "/opt/a/things/projects/jala/fundacion/softurem3/angular-multimodule-example"
+   var tasks = folders.map(function(folder) {
+   var module = folder;
+   var angularModuleName = 'multimodule.example.'+module.split('-')[2];
+
+   console.log('path:' + path.join(scriptsPath, folder, '/src/main/**/*.html'));
+      return gulp.src(path.join(scriptsPath, folder, '/src/main/**/*.html'))
+//        .pipe(newer('/opt/a/things/projects/jala/fundacion/softurem3/angular-multimodule-example/angular-multimodule-server/src/main/webapp/scripts/modules/' + module + '.tpl.js'))
+        .pipe(minifyhtml())
+        .pipe(ngHtml2js({moduleName: angularModuleName, stripPrefix: 'javascript/'}))
+        .pipe(concat(module + '.tpl.js'))
+//        .pipe(gulp.dest(template('<%= app %>/scripts/modules')))
+        .pipe(gulp.dest("/opt/a/things/projects/jala/fundacion/softurem3/angular-multimodule-example/angular-multimodule-server/src/main/webapp/scripts/modules"));
+   });
+
+//4521111
+   // process all remaining files in scriptsPath root into main.js and main.min.js files
+   /*var root = gulp.src(path.join(scriptsPath, '*//*.js'))
+        .pipe(concat('main.js'))
+        .pipe(gulp.dest(scriptsPath))
+        .pipe(uglify())
+        .pipe(rename('main.min.js'))
+        .pipe(gulp.dest(scriptsPath));*/
+
+   return tasks;//merge(tasks, root);
 });
